@@ -1,5 +1,5 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿﻿@{
+ViewData["Title"] = "Home Page";
 }
 
 @model WebApplication1.Models.CryptoViewModel;
@@ -119,36 +119,51 @@
         .button-group {
             margin-top: 20px;
         }
+
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <form asp-action="Encrypt" method="post">
+        <h1>Шифрование текста</h1>
+
+        @if (!string.IsNullOrEmpty(ViewData["ErrorMessage"]?.ToString()))
+        {
+            <div class="error" style="background-color: #ffebee; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+                @ViewData["ErrorMessage"]
+            </div>
+        }
+
+        <form id="mainForm" asp-action="Encrypt" method="post">
             <div class="form-group">
                 <label asp-for="Algorithm">Алгоритм шифрования:</label>
-                <select asp-for="Algorithm" asp-items="@(new SelectList(new[] { "AES", "RSA" }))">
+                <select id="Algorithm" name="Algorithm" asp-for="Algorithm" asp-items="@(new SelectList(new[] { "AES", "RSA" }))">
                 </select>
             </div>
 
             <div class="form-group">
                 <label asp-for="Key">Ключ шифрования:</label>
-                <textarea asp-for="Key" rows="3"></textarea>
-                <button type="submit" asp-action="GenerateKey" class="btn-key" style="margin-top: 10px;">
+                <textarea id="Key" name="Key" asp-for="Key" rows="3"></textarea>
+                <button type="button" id="generateKeyBtn" class="btn-key" style="margin-top: 10px;">
                     Сгенерировать ключ
                 </button>
             </div>
 
-            @if (Model.Algorithm == "AES")
-            {
-                <div class="form-group">
-                    <label asp-for="IV">Вектор инициализации (IV):</label>
-                    <textarea asp-for="IV" rows="2"></textarea>
-                </div>
-            }
+            <div id="ivGroup" class="form-group" style="display: @(Model?.Algorithm == "AES" ? "block" : "none")">
+                <label asp-for="IV">Вектор инициализации (IV):</label>
+                <textarea id="IV" name="IV" asp-for="IV" rows="2"></textarea>
+            </div>
 
             <div class="form-group">
                 <label asp-for="PlainText">Исходный текст:</label>
-                <textarea asp-for="PlainText" placeholder="Введите текст для шифрования..."></textarea>
+                <textarea id="PlainText" name="PlainText" asp-for="PlainText" placeholder="Введите текст для шифрования..."></textarea>
             </div>
 
             <div class="button-group">
@@ -156,7 +171,7 @@
             </div>
         </form>
 
-        @if (!string.IsNullOrEmpty(Model.EncryptedText))
+        @if (!string.IsNullOrEmpty(Model?.EncryptedText))
         {
             <div class="form-group">
                 <label>Зашифрованный текст:</label>
@@ -164,15 +179,15 @@
             </div>
 
             <form asp-action="Decrypt" method="post">
-                <input type="hidden" asp-for="Algorithm" />
-                <input type="hidden" asp-for="Key" />
-                <input type="hidden" asp-for="IV" />
-                <input type="hidden" asp-for="EncryptedText" />
+                <input type="hidden" name="Algorithm" value="@Model.Algorithm" />
+                <input type="hidden" name="Key" value="@Model.Key" />
+                <input type="hidden" name="IV" value="@Model.IV" />
+                <input type="hidden" name="EncryptedText" value="@Model.EncryptedText" />
                 <button type="submit" class="btn-decrypt">Расшифровать</button>
             </form>
         }
 
-        @if (!string.IsNullOrEmpty(Model.DecryptedText))
+        @if (!string.IsNullOrEmpty(Model?.DecryptedText))
         {
             <div class="form-group">
                 <label>Расшифрованный текст:</label>
@@ -181,6 +196,66 @@
                 </div>
             </div>
         }
+
+        @if (Model?.Algorithm == "RSA" && !string.IsNullOrEmpty(Model?.Key) && Model.Key.Contains("|"))
+        {
+            <div class="info" style="margin-top: 20px;">
+                <strong>Информация:</strong> RSA ключ сгенерирован. При шифровании используется публичная часть, при расшифровке - приватная.
+            </div>
+        }
+
+        @if (Model?.Algorithm == "RSA" && !string.IsNullOrEmpty(Model?.Key) && !Model.Key.Contains("|"))
+        {
+            <div class="warning">
+                <strong>Внимание!</strong> Текущий ключ не подходит для RSA. Нажмите кнопку "Сгенерировать ключ".
+            </div>
+        }
     </div>
+
+    <script>
+        // Автоматическая генерация ключа при смене алгоритма
+        document.getElementById('Algorithm').addEventListener('change', function() {
+            var algorithm = this.value;
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '@Url.Action("GenerateKey", "Home")';
+
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'Algorithm';
+            input.value = algorithm;
+            form.appendChild(input);
+
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        // Генерация ключа по кнопке
+        document.getElementById('generateKeyBtn').addEventListener('click', function() {
+            var algorithm = document.getElementById('Algorithm').value;
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '@Url.Action("GenerateKey", "Home")';
+
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'Algorithm';
+            input.value = algorithm;
+            form.appendChild(input);
+
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        // Показываем/скрываем IV поле в зависимости от алгоритма
+        document.getElementById('Algorithm').addEventListener('change', function() {
+            var ivGroup = document.getElementById('ivGroup');
+            if (this.value === 'AES') {
+                ivGroup.style.display = 'block';
+            } else {
+                ivGroup.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
